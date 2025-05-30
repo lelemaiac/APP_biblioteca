@@ -1,11 +1,13 @@
-from http.client import responses
-
 import flet as ft
 import requests
 from flet import AppBar, Text, View, ElevatedButton
 from flet.core.colors import Colors
-from flet.core.dropdown import Option
-from flet.core.types import MainAxisAlignment, CrossAxisAlignment
+from flet.core.types import CrossAxisAlignment
+from dateutil.relativedelta import relativedelta
+
+id_usuario_global = 0
+id_emprestimo_global = 0
+id_livro_global = 0
 
 def main(page: ft.Page):
     # Configurações
@@ -17,6 +19,7 @@ def main(page: ft.Page):
     def salvar_livro(e):
         if (input_titulo.value == "" or input_isbn.value == ""
                 or input_resumo.value == "" or input_autor.value == ""):
+            msg_error.content = ft.Text("Preencha todos os campos")
             page.overlay.append(msg_error)
             msg_error.open = True
             page.update()
@@ -27,6 +30,23 @@ def main(page: ft.Page):
                 "isbn": input_isbn.value,
                 "resumo": input_resumo.value
             }
+
+            resposta = post_cadastro_livro(novo_livro)
+
+            if 'erro' in resposta:
+                msg_error.content = ft.Text(resposta['erro'])
+                page.overlay.append(msg_error)
+                msg_error.open = True
+                page.update()
+            else:
+                input_titulo.value = ""
+                input_isbn.value = ""
+                input_resumo.value = ""
+                input_autor.value = ""
+                page.overlay.append(msg_sucesso)
+                msg_sucesso.open = True
+
+        page.update()
 
 
     def salvar_usuario(e):
@@ -62,48 +82,41 @@ def main(page: ft.Page):
             cadastro_emprestimo(novo_emprestimo)
 
     def detalhes_livro(livro):
-        txt_titulo.value = livro["titulo"]
-        txt_isbn.value = livro["isbn"]
-        txt_resumo.value = livro["resumo"]
-        txt_autor.value = livro["autor"]
+        txt_titulo.value = (f'Titulo: {livro["titulo"]}')
+        txt_isbn.value = (f'ISBN: {livro["isbn"]}')
+        txt_resumo.value = (f'Resumo: {livro["resumo"]}')
+        txt_autor.value = (f'Autor: {livro["autor"]}')
 
         page.go("/detalhes_livros")
 
     def detalhes_usuario(usuario):
-        txt_nome.value = usuario["nome"]
-        txt_cpf.value = usuario["cpf"]
-        txt_endereco.value = usuario["endereco"]
-        txt_papel.value = usuario["papel"]
+        txt_nome.value = (f'Nome: {usuario["nome"]}')
+        txt_cpf.value = (f'CPF:{usuario["cpf"]}')
+        txt_endereco.value = (f'Endereço: {usuario["endereco"]}')
+        txt_papel.value = (f'Papel: {usuario["papel"]}')
 
         page.go("/detalhes_usuario")
 
     def detalhes_emprestimo(emprestimo):
-        txt_livroID.value = emprestimo["livro_id"]
-        txt_usuarioID.value = emprestimo["usuario_id"]
-        txt_data_emprestimo.value = emprestimo["data_emprestimo"]
-        txt_previsao_devolucao.value = emprestimo["data_devolucao"]
+        txt_livroID.value = (f'Livro ID: {emprestimo["livro_id"]}')
+        txt_usuarioID.value = (f'Usuario ID: {emprestimo["usuario_id"]}')
+        txt_data_emprestimo.value = (f'Data do emprestimo: {emprestimo["data_emprestimo"]}')
+        txt_previsao_devolucao.value = (f'Devolução prevista: {emprestimo["previsao_devolucao"]}')
 
         page.go("/detalhes_emprestimo")
 
-    def cadastro_livro(novo_livro):
+    def post_cadastro_livro(novo_livro):
         url = 'http://10.135.232.20:5000/cadastrar_livro'
 
         response = requests.post(url, json=novo_livro)
 
         if response.status_code == 201:
             dados_livros = response.json()
-            txt_titulo.value = dados_livros['titulo']
 
-            input_titulo.value = ""
-            input_isbn.value = ""
-            input_resumo.value = ""
-            input_autor.value = ""
-            page.overlay.append(msg_sucesso)
-            msg_sucesso.open = True
-            page.update()
-
+            return dados_livros
         else:
             print(response.status_code)
+            return response.json()
 
     def cadastro_usuario(novo_usuario):
         url = 'http://10.135.232.20:5000/cadastrar_usuario'
@@ -111,6 +124,12 @@ def main(page: ft.Page):
 
         if response.status_code == 201:
             dados_usuario = response.json()
+
+            if "error" in response.json():
+                msg_error.content = response.json()["error"]
+                msg_error.open = True
+                page.overlay.append(msg_error)
+
             txt_nome.value = dados_usuario['nome']
             input_nome.value = ''
             input_cpf.value = ""
@@ -182,84 +201,129 @@ def main(page: ft.Page):
         else:
             msg_error.open = True
 
-    def atualizar_livros(id):
-        url = 'http://10.135.232.20:5000/editar_livro/<int:id>'
+    # def get_livro(id):
+    #     url = f'http://10.135.232.9:5000/get_livro/{id}'
+    #     response = requests.get(url)
+    #     if response.status_code == 200:
+    #         dados_get_postagem = response.json()
+    #         print(dados_get_postagem)
+    #     else:
+    #         print(f'Erro: {response.status_code}')
 
-        atualizar_livro = {
-            'id': id,
+    def emprestimo_por_usuario(id):
+        url = f'http://10.135.232.20:5000/emprestimos_usuario/{id}'
+        response_emprestimo_usuario = requests.get(url)
+
+        if response_emprestimo_usuario.status_code == 200:
+            dados_emprestimo_usuario = response_emprestimo_usuario.json()
+            print(dados_emprestimo_usuario["emprestimos"])
+            return dados_emprestimo_usuario['emprestimos']
+        else:
+            msg_error.open = response_emprestimo_usuario.json()
+            msg_error.open = True
+            print(response_emprestimo_usuario.json())
+            return response_emprestimo_usuario
+
+    def atualizar_livros():
+        global id_livro_global
+        print(id_livro_global)
+        url = f'http://10.135.232.20:5000/editar_livro/{id_livro_global}'
+
+        livro_atualizado = {
             'titulo': input_titulo.value,
             'isbn': input_isbn.value,
             'resumo': input_resumo.value,
             'autor': input_autor.value,
         }
 
-        antes = requests.get(url, json=atualizar_livro)
-        response = requests.put(url, json=atualizar_livro)
+        response = requests.put(url, json=livro_atualizado)
 
         if response.status_code == 200:
-            if antes.status_code == 200:
-                dados_antes = antes.json()
-                print(f' Titulo antigo: {dados_antes["title"]}')
-            else:
-                print(f' Erro: {response.status_code}')
-            dados_put = response.json()
-            print(f' Titulo: {dados_put["title"]}')
-            print(f' Conteudo: {dados_put["body"]}\n')
-            page.go('/editar_livro')
+            page.go("/lista_livro")
+            page.update()
         else:
-            print(f' Erro: {response.status_code}')
+            print(f' Erro: {response.json()}')
+            return {
+                "error": response.json()
+            }
 
-    def atualizar_usuarios(id):
-        url = 'http://10.135.232.20:5000/editar_usuario/<id>'
+    def popular_input_usuario(usuario):
+        input_nome.value = usuario['nome']
+        input_cpf.value = usuario['cpf']
+        input_endereco.value = usuario['endereco']
+        input_papel.value = usuario['papel']
 
-        atualizar_livros = {
-            'id': id,
-            'titulo': input_titulo.value,
-            'isbn': input_isbn.value,
-            'resumo': input_resumo.value,
-            'autor': input_autor.value,
-        }
+        global id_usuario_global
+        id_usuario_global = usuario['id']
 
-        antes = requests.get(url, json=atualizar_livros)
-        response = requests.put(url, json=atualizar_livros)
+        page.go("/editar_usuario")
 
-        if response.status_code == 200:
-            if antes.status_code == 200:
-                dados_antes = antes.json()
-                print(f' Titulo antigo: {dados_antes["title"]}')
-            else:
-                print(f' Erro: {response.status_code}')
-            dados_put = response.json()
-            print(f' Titulo: {dados_put["title"]}')
-            print(f' Conteudo: {dados_put["body"]}\n')
+    def popular_input_emprestimo(emprestimo):
+        input_usuario_id.value = emprestimo['usuario_id']
+        input_livro_id.value = emprestimo['livro_id']
+        input_data_emprestimo.value = emprestimo['data_emprestimo']
+        input_devolucao_prevista.value = emprestimo['data_devolucao']
+
+        global id_emprestimo_global
+        id_emprestimo_global = emprestimo['id']
+
+        page.go("/editar_emprestimo")
+
+    def popular_input_livro(livro):
+        input_titulo.value = livro['titulo']
+        input_isbn.value = livro['isbn']
+        input_autor.value = livro['autor']
+        input_resumo.value = livro['resumo']
+
+        global id_livro_global
+        id_livro_global = livro['id']
+
+        page.go("/editar_livro")
+
+    def atualizar_usuario():
+        global id_usuario_global
+        url = f'http://10.135.232.20:5000/editar_usuario/{id_usuario_global}'
+
+        if input_nome == "" or input_cpf == "" or input_endereco == "" or input_papel == "":
+            page.overlay.append(msg_error)
+            msg_error.open = True
+            page.update()
         else:
-            print(f' Erro: {response.status_code}')
+            usuario_atualizado = {
+                'nome': input_nome.value,
+                'cpf': input_cpf.value,
+                'endereco': input_endereco.value,
+                'papel': input_papel.value,
+            }
 
-    def atualizar_emprestimo(id):
-        url = 'http://10.135.232.20:5000/editar_emprestimo/<id>'
+            response = requests.put(url, json=usuario_atualizado)
 
-        atualizar_emprestimo = {
-            'id': id,
+            if response.status_code == 200:
+                page.go("/lista_usuario")
+                page.update()
+            else:
+                return response.json()
+
+    def atualizar_emprestimo():
+        global id_emprestimo_global
+        url = f'http://10.135.232.20:5000/editar_emprestimo/{id_emprestimo_global}'
+
+        emprestimo_atualizado = {
             'livro_id': input_livro_id.value,
             'usuario_id': input_usuario_id.value,
             'data_emprestimo': input_data_emprestimo.value,
             'data_devolucao': input_devolucao_prevista.value
         }
 
-        antes = requests.get(url, json=atualizar_emprestimo)
-        response = requests.put(url, json=atualizar_emprestimo)
+        response = requests.put(url, json=emprestimo_atualizado)
 
         if response.status_code == 200:
-            if antes.status_code == 200:
-                dados_antes = antes.json()
-                print(f' Data de devolução antiga: {dados_antes["title"]}')
-            else:
-                print(f' Erro: {response.status_code}')
-            dados_put = response.json()
-            print(f' Titulo: {dados_put["title"]}')
-            print(f' Conteudo: {dados_put["body"]}\n')
+            page.go("/lista_emprestimo")
+            page.update()
         else:
-            print(f' Erro: {response.status_code}')
+            return {
+                "error": response.json()
+            }
 
 
     def livros(e):
@@ -275,7 +339,7 @@ def main(page: ft.Page):
                         icon=ft.Icons.MORE_VERT,
                         items=[
                             ft.PopupMenuItem(text="DETALHES", on_click=lambda _, l=livro: detalhes_livro(l)),
-                            ft.PopupMenuItem(text="EDITAR", on_click=lambda _, l=livro: atualizar_livros(l)),
+                            ft.PopupMenuItem(text="EDITAR", on_click=lambda _, l=livro: popular_input_livro(l)),
                         ]
                     )
                 )
@@ -313,6 +377,25 @@ def main(page: ft.Page):
                 )
             )
 
+    def emprestimos_usuarios():
+        lv.controls.clear()
+        resultado_emprestimo_user = emprestimo_por_usuario(id)
+        print(f' Emprestimo por usuário: {resultado_emprestimo_user}')
+        for lista_por_usuario in resultado_emprestimo_user:
+            lv.controls.append(
+                ft.ListTile(
+                    leading=ft.Icon(ft.Icons.BOOK_OUTLINED),
+                    title=ft.Text(f'ID do usuário: {lista_por_usuario['usuario_id']}'),
+                    trailing=ft.PopupMenuButton(
+                        icon=ft.Icons.MORE_VERT,
+                        items=[
+                            ft.PopupMenuItem(text="DETALHES", on_click=lambda _, l=lista_por_usuario: detalhes_emprestimo(l)),
+                        ]
+                    )
+                )
+            )
+
+
 
     def emprestimos(e):
         lv.controls.clear()
@@ -327,7 +410,7 @@ def main(page: ft.Page):
                         icon=ft.Icons.MORE_VERT,
                         items=[
                             ft.PopupMenuItem(text="DETALHES", on_click=lambda _, em=emprestimo: detalhes_emprestimo(em)),
-                            ft.PopupMenuItem(text="EDITAR", on_click=lambda _: atualizar_emprestimo(id)),
+                            ft.PopupMenuItem(text="EDITAR", on_click=lambda _, em=emprestimo: popular_input_emprestimo(em)),
                         ]
                     )
                 )
@@ -347,7 +430,8 @@ def main(page: ft.Page):
                         items=[
                             ft.PopupMenuItem(text="DETALHES",
                                              on_click=lambda _, u=usuario: detalhes_usuario(u)),
-                            ft.PopupMenuItem(text="EDITAR", on_click=lambda _: atualizar_usuarios(id)),
+                            ft.PopupMenuItem(text="EDITAR",
+                                             on_click=lambda _, u=usuario: popular_input_usuario(u)),
                         ]
                     )
                 )
@@ -380,9 +464,9 @@ def main(page: ft.Page):
 
                     ElevatedButton(
                         text="Status",
-                        color=ft.Colors.BLACK,
+                        color=ft.Colors.WHITE,
                         on_click=lambda _: page.go("/status"),
-                        bgcolor=Colors.WHITE,
+                        bgcolor=Colors.BLACK,
                     ),
                 ),
                 bgcolor="#213D85",
@@ -434,7 +518,94 @@ def main(page: ft.Page):
                                        color=ft.Colors.WHITE,
                                        on_click=lambda _: salvar_livro(e),
                                        bgcolor=Colors.BLACK,
+                                       width=page.window.width),
+                        ElevatedButton(text="Voltar",
+                                       color=ft.Colors.BLACK,
+                                       on_click=lambda _: page.go("/cadastros"),
+                                       bgcolor=Colors.WHITE,
                                        width=page.window.width)
+
+                    ],
+                    bgcolor = "#213D85",
+                    horizontal_alignment=CrossAxisAlignment.CENTER,
+                )
+            )
+
+
+        if page.route == "/editar_usuario":
+            page.views.append(
+                View(
+                    "/editar_usuario",
+                    [
+                        AppBar(title=Text("Editar usuário"), bgcolor="#2CC3FF"),
+                        input_nome,
+                        input_cpf,
+                        input_endereco,
+                        input_papel,
+                        ElevatedButton(text="Enviar",
+                                       color=ft.Colors.WHITE,
+                                       on_click=lambda _: atualizar_usuario(),
+                                       bgcolor=Colors.BLACK,
+                                       width=page.window.width),
+                        ElevatedButton(text="Voltar",
+                                       color=ft.Colors.BLACK,
+                                       on_click=lambda _: page.go("/lista_usuario"),
+                                       bgcolor=Colors.WHITE,
+                                       width=page.window.width),
+
+                    ],
+                    bgcolor = "#213D85",
+                    horizontal_alignment=CrossAxisAlignment.CENTER,
+                )
+            )
+
+        if page.route == "/editar_livro":
+            page.views.append(
+                View(
+                    "/editar_livro",
+                    [
+                        AppBar(title=Text("Editar livro"), bgcolor="#2CC3FF"),
+                        input_titulo,
+                        input_isbn,
+                        input_autor,
+                        input_resumo,
+                        ElevatedButton(text="Enviar",
+                                       color=ft.Colors.WHITE,
+                                       on_click=lambda _: atualizar_livros(),
+                                       bgcolor=Colors.BLACK,
+                                       width=page.window.width),
+                        ElevatedButton(text="Voltar",
+                                       color=ft.Colors.BLACK,
+                                       on_click=lambda _: page.go("/lista_livro"),
+                                       bgcolor=Colors.WHITE,
+                                       width=page.window.width),
+
+                    ],
+                    bgcolor = "#213D85",
+                    horizontal_alignment=CrossAxisAlignment.CENTER,
+                )
+            )
+
+        if page.route == "/editar_emprestimo":
+            page.views.append(
+                View(
+                    "/editar_emprestimo",
+                    [
+                        AppBar(title=Text("Editar emprestimo"), bgcolor="#2CC3FF"),
+                        input_livro_id,
+                        input_usuario_id,
+                        input_data_emprestimo,
+                        input_devolucao_prevista,
+                        ElevatedButton(text="Enviar",
+                                       color=ft.Colors.WHITE,
+                                       on_click=lambda _: atualizar_emprestimo(),
+                                       bgcolor=Colors.BLACK,
+                                       width=page.window.width),
+                        ElevatedButton(text="Voltar",
+                                       color=ft.Colors.BLACK,
+                                       on_click=lambda _: page.go("/lista_emprestimo"),
+                                       bgcolor=Colors.WHITE,
+                                       width=page.window.width),
 
                     ],
                     bgcolor = "#213D85",
@@ -456,6 +627,11 @@ def main(page: ft.Page):
                                        color=ft.Colors.WHITE,
                                        on_click=lambda _: salvar_emprestimo(e),
                                        bgcolor=Colors.BLACK,
+                                       width=page.window.width),
+                        ElevatedButton(text="Voltar",
+                                       color=ft.Colors.BLACK,
+                                       on_click=lambda _: page.go("/cadastros"),
+                                       bgcolor=Colors.WHITE,
                                        width=page.window.width)
 
                     ],
@@ -478,6 +654,11 @@ def main(page: ft.Page):
                                        color=ft.Colors.WHITE,
                                        on_click=lambda _: salvar_usuario(e),
                                        bgcolor=Colors.BLACK,
+                                       width=page.window.width),
+                        ElevatedButton(text="Voltar",
+                                       color=ft.Colors.BLACK,
+                                       on_click=lambda _: page.go("/cadastros"),
+                                       bgcolor=Colors.WHITE,
                                        width=page.window.width)
 
                     ],
@@ -523,7 +704,31 @@ def main(page: ft.Page):
                     "/lista_livro",
                     [
                         AppBar(title=Text("Livros"), bgcolor="#2CC3FF"),
-                        lv
+                        lv,
+                        ElevatedButton(text="Voltar",
+                                       color=ft.Colors.BLACK,
+                                       on_click=lambda _: page.go("/listas"),
+                                       bgcolor=Colors.WHITE,
+                                       width=page.window.width)
+                    ],
+                    bgcolor = "#213D85",
+                    horizontal_alignment = CrossAxisAlignment.CENTER,
+                )
+            )
+
+        if page.route == "/lista_emprestimo_usuario":
+            emprestimos_usuarios()
+            page.views.append(
+                View(
+                    "/lista_emprestimo_usuario",
+                    [
+                        AppBar(title=Text("Emprestimo por usuário"), bgcolor="#2CC3FF"),
+                        lv,
+                        ElevatedButton(text="Voltar",
+                                       color=ft.Colors.BLACK,
+                                       on_click=lambda _: page.go("/listas"),
+                                       bgcolor=Colors.WHITE,
+                                       width=page.window.width)
                     ],
                     bgcolor = "#213D85",
                     horizontal_alignment = CrossAxisAlignment.CENTER,
@@ -537,7 +742,12 @@ def main(page: ft.Page):
                     "/lista_usuario",
                     [
                         AppBar(title=Text("Usuários"), bgcolor="#2CC3FF"),
-                        lv
+                        lv,
+                        ElevatedButton(text="Voltar",
+                                       color=ft.Colors.BLACK,
+                                       on_click=lambda _: page.go("/listas"),
+                                       bgcolor=Colors.WHITE,
+                                       width=page.window.width)
                     ],
                     bgcolor="#213D85",
                     horizontal_alignment=CrossAxisAlignment.CENTER,
@@ -551,7 +761,12 @@ def main(page: ft.Page):
                     "/lista_emprestimo",
                     [
                         AppBar(title=Text("Emprestimos"), bgcolor="#2CC3FF"),
-                        lv
+                        lv,
+                        ElevatedButton(text="Voltar",
+                                       color=ft.Colors.BLACK,
+                                       on_click=lambda _: page.go("/listas"),
+                                       bgcolor=Colors.WHITE,
+                                       width=page.window.width)
                     ],
                     bgcolor="#213D85",
                     horizontal_alignment=CrossAxisAlignment.CENTER,
@@ -569,6 +784,11 @@ def main(page: ft.Page):
                         txt_resumo,
                         txt_isbn,
                         txt_autor,
+                        ElevatedButton(text="Voltar",
+                                       color=ft.Colors.BLACK,
+                                       on_click=lambda _: page.go("/lista_livro"),
+                                       bgcolor=Colors.WHITE,
+                                       width=page.window.width)
                     ],
                     bgcolor="#213D85",
                     horizontal_alignment=CrossAxisAlignment.CENTER,
@@ -585,6 +805,11 @@ def main(page: ft.Page):
                         txt_cpf,
                         txt_endereco,
                         txt_papel,
+                        ElevatedButton(text="Voltar",
+                                       color=ft.Colors.BLACK,
+                                       on_click=lambda _: page.go("/lista_usuario"),
+                                       bgcolor=Colors.WHITE,
+                                       width=page.window.width)
                     ],
                     bgcolor="#213D85",
                     horizontal_alignment=CrossAxisAlignment.CENTER,
@@ -601,6 +826,11 @@ def main(page: ft.Page):
                         txt_usuarioID,
                         txt_data_emprestimo,
                         txt_previsao_devolucao,
+                        ElevatedButton(text="Voltar",
+                                       color=ft.Colors.BLACK,
+                                       on_click=lambda _: page.go("/lista_emprestimo"),
+                                       bgcolor=Colors.WHITE,
+                                       width=page.window.width)
                     ],
                     bgcolor="#213D85",
                     horizontal_alignment=CrossAxisAlignment.CENTER,
@@ -657,7 +887,7 @@ def main(page: ft.Page):
         content=ft.Text("Dados não inseridos não podem ser salvos")
     )
 
-    txt_titulo = ft.Text()
+    txt_titulo = ft.Text('Titulo:')
     txt_isbn = ft.Text()
     txt_autor = ft.Text()
     txt_resumo = ft.Text()
