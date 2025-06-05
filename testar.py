@@ -1,26 +1,17 @@
 import requests
 
 
-def emprestimo_usuario(id):
-    url = f'http://10.135.232.20:5000/emprestimos_usuario/{id}'
-    response_emprestimo_usuario = requests.get(url)
+def lista_livros():
+    url = 'http://10.135.232.20:5000/livros'
+    response_livros = requests.get(url)
 
-    if response_emprestimo_usuario.status_code == 200:
-        dados_emprestimo_usuario = response_emprestimo_usuario.json()
-        print(dados_emprestimo_usuario)
+    if response_livros.status_code == 200:
+        dados_livro = response_livros.json()
+        print(dados_livro)
+        return dados_livro['livros']
+
     else:
-        print(response_emprestimo_usuario.status_code)
+        print(f'Erro: {response_livros.status_code}')
+        return response_livros.json()
 
-emprestimo_usuario(1)
-#
-# def lista_status():
-#     url = 'http://10.135.232.20:5000/status_livro'
-#     response_status = requests.get(url)
-#
-#     if response_status.status_code == 200:
-#         dados_emprestimo = response_status.json()
-#         print(dados_emprestimo)
-#     else:
-#         print("erro")
-#
-# lista_status()
+lista_livros()

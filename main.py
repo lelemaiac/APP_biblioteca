@@ -2,8 +2,10 @@ import flet as ft
 import requests
 from flet import AppBar, Text, View, ElevatedButton
 from flet.core.colors import Colors
+from flet.core.dropdown import Option
 from flet.core.types import CrossAxisAlignment
 from dateutil.relativedelta import relativedelta
+from urllib3 import response
 
 id_usuario_global = 0
 id_emprestimo_global = 0
@@ -63,7 +65,23 @@ def main(page: ft.Page):
                 "papel": input_papel.value,
             }
 
-            cadastro_usuario(novo_usuario)
+            resposta = cadastro_usuario(novo_usuario)
+
+            if 'erro' in resposta:
+                msg_error.content = ft.Text(resposta['erro'])
+                page.overlay.append(msg_error)
+                msg_error.open = True
+                page.update()
+
+            else:
+                input_nome.value = ''
+                input_cpf.value = ""
+                input_endereco.value = ""
+                input_papel.value = ""
+                page.overlay.append(msg_sucesso)
+                msg_sucesso.open = True
+        page.update()
+
 
     def salvar_emprestimo(e):
         if (input_livro_id.value == "" or input_usuario_id.value == ""
@@ -79,7 +97,21 @@ def main(page: ft.Page):
                 "data_devolucao_prevista": input_devolucao_prevista.value,
             }
 
-            cadastro_emprestimo(novo_emprestimo)
+            resposta = cadastro_emprestimo(novo_emprestimo)
+
+            if 'erro' in resposta:
+                msg_error.content = ft.Text(resposta['erro'])
+                page.overlay.append(msg_error)
+                msg_error.open = True
+                page.update()
+            else:
+                input_livro_id.value = ""
+                input_usuario_id.value = ""
+                input_data_emprestimo.value = ""
+                input_devolucao_prevista.value = ""
+                page.overlay.append(msg_sucesso)
+                msg_sucesso.open = True
+        page.update()
 
     def detalhes_livro(livro):
         txt_titulo.value = (f'Titulo: {livro["titulo"]}')
@@ -115,7 +147,6 @@ def main(page: ft.Page):
 
             return dados_livros
         else:
-            print(response.status_code)
             return response.json()
 
     def cadastro_usuario(novo_usuario):
@@ -125,21 +156,9 @@ def main(page: ft.Page):
         if response.status_code == 201:
             dados_usuario = response.json()
 
-            if "error" in response.json():
-                msg_error.content = response.json()["error"]
-                msg_error.open = True
-                page.overlay.append(msg_error)
-
-            txt_nome.value = dados_usuario['nome']
-            input_nome.value = ''
-            input_cpf.value = ""
-            input_endereco.value = ""
-            input_papel.value = ""
-            page.overlay.append(msg_sucesso)
-            msg_sucesso.open = True
-            page.update()
+            return dados_usuario
         else:
-            print(response.json())
+            return response.json()
 
     def cadastro_emprestimo(novo_emprestimo):
         url = 'http://10.135.232.20:5000/cadastrar_emprestimo'
@@ -148,18 +167,9 @@ def main(page: ft.Page):
         if response.status_code == 201:
             dados_emprestimo = response.json()
 
-            txt_livroID.value = dados_emprestimo['livro_id']
-
-            input_livro_id.value = ""
-            input_usuario_id.value = ""
-            input_data_emprestimo.value = ""
-            input_devolucao_prevista.value = ""
-            page.overlay.append(msg_sucesso)
-            msg_sucesso.open = True
-            page.update()
+            return dados_emprestimo
         else:
-            print(response.status_code)
-            print(response.json())
+            return response.json()
 
     def lista_livros():
         url = 'http://10.135.232.20:5000/livros'
@@ -167,10 +177,11 @@ def main(page: ft.Page):
 
         if response_livros.status_code == 200:
             dados_livro = response_livros.json()
-            return dados_livro
-        else:
-            msg_error.open = True
+            return dados_livro ['livros']
 
+        else:
+            print(f'Erro: {response_livros.status_code}')
+            return response.json()
     def lista_emprestimos():
         url = 'http://10.135.232.20:5000/emprestimos'
         response_emprestimos = requests.get(url)
@@ -187,7 +198,7 @@ def main(page: ft.Page):
 
         if response_usuarios.status_code == 200:
             dados_usuario = response_usuarios.json()
-            return dados_usuario
+            return dados_usuario["usuarios"]
         else:
             msg_error.open = True
 
@@ -329,8 +340,7 @@ def main(page: ft.Page):
     def livros(e):
         lv.controls.clear()
         resultado_lista = lista_livros()
-        print(f' Livros: {resultado_lista["livros"]}')
-        for livro in resultado_lista['livros']:
+        for livro in resultado_lista:
             lv.controls.append(
                 ft.ListTile(
                     leading=ft.Icon(ft.Icons.BOOK),
@@ -419,8 +429,8 @@ def main(page: ft.Page):
     def usuarios(e):
         lv.controls.clear()
         resultado_usuario = lista_usuarios()
-        print(f' Usuarios: {resultado_usuario["usuarios"]}')
-        for usuario in resultado_usuario['usuarios']:
+        print(f' Usuarios: {resultado_usuario}')
+        for usuario in resultado_usuario:
             lv.controls.append(
                 ft.ListTile(
                     leading=ft.Icon(ft.Icons.PERSON),
@@ -863,13 +873,20 @@ def main(page: ft.Page):
     input_cpf = ft.TextField(label="CPF", hint_text="Digite o seu CPF")
     input_endereco = ft.TextField(label="Endereço", hint_text="Digite o seu endereço")
     input_papel = ft.TextField(label="Papel", hint_text="Digite o seu papel")
-    #
-    # input_livro_id = ft.Dropdown(label="Id do livro", width=page.window.width,
-    #                      options=[Option(key="id", text="Masculino"),
-    #                               Option(key="fem", text="Feminino")], fill_color=Colors.WHITE, filled=True)
 
-    input_livro_id = ft.TextField(label="ID do Livro", hint_text="Digite o ID do livro")
-    input_usuario_id = ft.TextField(label="ID do Usuário", hint_text="Digite o ID do usuário")
+    resultado_lista_livro = lista_livros()
+    print(resultado_lista_livro)
+    for livro in resultado_lista_livro:
+        input_livro_id = ft.Dropdown(label="Id do livro",width=page.window.width,
+                                options=[Option(key=livro["id"], text=livro["titulo"])],fill_color="#213D85", filled=True)
+
+    resultado_lista_usuario = lista_usuarios()
+    print(resultado_lista_usuario)
+    for usuario in resultado_lista_usuario:
+        input_usuario_id = ft.Dropdown(label="Id do usuário",width=page.window.width,
+                                options=[Option(key=usuario["id"], text=usuario["nome"])],
+                                fill_color="#213D85", filled=True)
+
     input_devolucao_prevista = ft.TextField(label="Data prevista para devolução", hint_text="Digite a data prevista de devolução")
     input_data_emprestimo = ft.TextField(label="Data do empréstimo", hint_text="Digite a data do empréstimo")
 
@@ -906,7 +923,5 @@ def main(page: ft.Page):
     page.on_route_change = gerenciar_rotas
     page.go(page.route)
 
-#popular os inputs
-#encaminhar do botão editar para a página cadastrar
 
 ft.app(main)
