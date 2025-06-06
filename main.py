@@ -5,11 +5,13 @@ from flet.core.colors import Colors
 from flet.core.dropdown import Option
 from flet.core.types import CrossAxisAlignment
 from dateutil.relativedelta import relativedelta
+from datetime import datetime
 from urllib3 import response
 
 id_usuario_global = 0
 id_emprestimo_global = 0
 id_livro_global = 0
+id_emprestimo_usuario_global = 0
 
 def main(page: ft.Page):
     # Configurações
@@ -130,10 +132,10 @@ def main(page: ft.Page):
         page.go("/detalhes_usuario")
 
     def detalhes_emprestimo(emprestimo):
-        txt_livroID.value = (f'Livro ID: {emprestimo["livro_id"]}')
-        txt_usuarioID.value = (f'Usuario ID: {emprestimo["usuario_id"]}')
+        txt_livroID.value = (f'Livro: {emprestimo["livro_id"]}')
+        txt_usuarioID.value = (f'Usuario: {emprestimo["usuario_id"]}')
         txt_data_emprestimo.value = (f'Data do emprestimo: {emprestimo["data_emprestimo"]}')
-        txt_previsao_devolucao.value = (f'Devolução prevista: {emprestimo["previsao_devolucao"]}')
+        txt_previsao_devolucao.value = (f'Devolução prevista: {emprestimo["data_devolucao"]}')
 
         page.go("/detalhes_emprestimo")
 
@@ -182,6 +184,7 @@ def main(page: ft.Page):
         else:
             print(f'Erro: {response_livros.status_code}')
             return response.json()
+
     def lista_emprestimos():
         url = 'http://10.135.232.20:5000/emprestimos'
         response_emprestimos = requests.get(url)
@@ -221,8 +224,11 @@ def main(page: ft.Page):
     #     else:
     #         print(f'Erro: {response.status_code}')
 
-    def emprestimo_por_usuario(id):
-        url = f'http://10.135.232.20:5000/emprestimos_usuario/{id}'
+
+    def emprestimo_por_usuario():
+        print("lllllllllllll")
+        global id_emprestimo_usuario_global
+        url = f'http://10.135.232.20:5000/emprestimos_usuario/{id_emprestimo_usuario_global}'
         response_emprestimo_usuario = requests.get(url)
 
         if response_emprestimo_usuario.status_code == 200:
@@ -234,6 +240,20 @@ def main(page: ft.Page):
             msg_error.open = True
             print(response_emprestimo_usuario.json())
             return response_emprestimo_usuario
+    #
+    # def get_livro():
+    #     global id_livro_global
+    #     url = f'http://10.135.232.20:5000/get_usuario/{id_livro_global}'
+    #     response_get_livro = requests.get(url)
+    #
+    #     if response_get_livro.status_code == 200:
+    #         dados_get_livro = response_get_livro.json()
+    #         print(dados_get_livro["emprestimos"])
+    #         return dados_get_livro
+    #     else:
+    #         msg_error.open = response_get_livro.json()
+    #         msg_error.open = True
+    #         return response_get_livro
 
     def atualizar_livros():
         global id_livro_global
@@ -291,6 +311,13 @@ def main(page: ft.Page):
 
         page.go("/editar_livro")
 
+    def popular_global_emprestimo_por_usuario(usuario):
+        global id_emprestimo_usuario_global
+        id_emprestimo_usuario_global = usuario['id']
+
+        page.go("/lista_emprestimo_usuario")
+
+
     def atualizar_usuario():
         global id_usuario_global
         url = f'http://10.135.232.20:5000/editar_usuario/{id_usuario_global}'
@@ -319,22 +346,29 @@ def main(page: ft.Page):
         global id_emprestimo_global
         url = f'http://10.135.232.20:5000/editar_emprestimo/{id_emprestimo_global}'
 
-        emprestimo_atualizado = {
-            'livro_id': input_livro_id.value,
-            'usuario_id': input_usuario_id.value,
-            'data_emprestimo': input_data_emprestimo.value,
-            'data_devolucao': input_devolucao_prevista.value
-        }
-
-        response = requests.put(url, json=emprestimo_atualizado)
-
-        if response.status_code == 200:
-            page.go("/lista_emprestimo")
+        if input_data_emprestimo == "" or input_devolucao_prevista == "" or input_usuario_id == "" or input_livro_id == "":
+            page.overlay.append(msg_error)
+            msg_error.open = True
             page.update()
+
         else:
-            return {
-                "error": response.json()
+
+            emprestimo_atualizado = {
+                'livro_id': input_livro_id.value,
+                'usuario_id': input_usuario_id.value,
+                'data_emprestimo': input_data_emprestimo.value,
+                'data_devolucao': input_devolucao_prevista.value
             }
+
+            response = requests.put(url, json=emprestimo_atualizado)
+
+            if response.status_code == 200:
+                page.go("/lista_emprestimo")
+                page.update()
+            else:
+                return {
+                    "error": response.json()
+                }
 
 
     def livros(e):
@@ -389,7 +423,7 @@ def main(page: ft.Page):
 
     def emprestimos_usuarios():
         lv.controls.clear()
-        resultado_emprestimo_user = emprestimo_por_usuario(id)
+        resultado_emprestimo_user = emprestimo_por_usuario()
         print(f' Emprestimo por usuário: {resultado_emprestimo_user}')
         for lista_por_usuario in resultado_emprestimo_user:
             lv.controls.append(
@@ -440,6 +474,8 @@ def main(page: ft.Page):
                         items=[
                             ft.PopupMenuItem(text="DETALHES",
                                              on_click=lambda _, u=usuario: detalhes_usuario(u)),
+                            ft.PopupMenuItem(text="EMPRESTIMOS",
+                                             on_click=lambda _, u=usuario: popular_global_emprestimo_por_usuario(u)),
                             ft.PopupMenuItem(text="EDITAR",
                                              on_click=lambda _, u=usuario: popular_input_usuario(u)),
                         ]
@@ -876,16 +912,25 @@ def main(page: ft.Page):
 
     resultado_lista_livro = lista_livros()
     print(resultado_lista_livro)
-    for livro in resultado_lista_livro:
-        input_livro_id = ft.Dropdown(label="Id do livro",width=page.window.width,
-                                options=[Option(key=livro["id"], text=livro["titulo"])],fill_color="#213D85", filled=True)
+
+    options = [Option(key=livro["id"], text=livro["titulo"]) for livro in resultado_lista_livro]
+
+    input_livro_id = ft.Dropdown(
+        label="Id do livro",
+        width=page.window.width,
+        options=options,)
+
 
     resultado_lista_usuario = lista_usuarios()
     print(resultado_lista_usuario)
-    for usuario in resultado_lista_usuario:
-        input_usuario_id = ft.Dropdown(label="Id do usuário",width=page.window.width,
-                                options=[Option(key=usuario["id"], text=usuario["nome"])],
-                                fill_color="#213D85", filled=True)
+
+    options = [Option(key=usuario["id"], text=usuario["nome"])for usuario in resultado_lista_usuario]
+
+    input_usuario_id = ft.Dropdown(label="Id do usuário",
+                                   width=page.window.width,
+                                    fill_color="#213D85",
+                                   options=options,
+                                   filled=True)
 
     input_devolucao_prevista = ft.TextField(label="Data prevista para devolução", hint_text="Digite a data prevista de devolução")
     input_data_emprestimo = ft.TextField(label="Data do empréstimo", hint_text="Digite a data do empréstimo")
