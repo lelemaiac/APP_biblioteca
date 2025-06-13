@@ -1,9 +1,11 @@
+from tkinter.ttk import Style
+
 import flet as ft
 import requests
 from flet import AppBar, Text, View, ElevatedButton
 from flet.core.colors import Colors
 from flet.core.dropdown import Option
-from flet.core.types import CrossAxisAlignment
+from flet.core.types import CrossAxisAlignment, FontWeight
 from dateutil.relativedelta import relativedelta
 from datetime import datetime
 from urllib3 import response
@@ -132,12 +134,22 @@ def main(page: ft.Page):
         page.go("/detalhes_usuario")
 
     def detalhes_emprestimo(emprestimo):
-        txt_livroID.value = (f'Livro: {emprestimo["livro_id"]}')
-        txt_usuarioID.value = (f'Usuario: {emprestimo["usuario_id"]}')
-        txt_data_emprestimo.value = (f'Data do emprestimo: {emprestimo["data_emprestimo"]}')
-        txt_previsao_devolucao.value = (f'Devolução prevista: {emprestimo["data_devolucao"]}')
+        url_livro = f'http://10.135.232.20:5000/get_livro/{emprestimo["livro_id"]}'
+        url_usuario = f'http://10.135.232.20:5000/get_usuario/{emprestimo["usuario_id"]}'
 
-        page.go("/detalhes_emprestimo")
+        response_livros = requests.get(url_livro)
+        response_usuarios = requests.get(url_usuario)
+
+        if response_livros.status_code and response_usuarios.status_code == 200:
+            dados_livro = response_livros.json()
+            dados_usuario = response_usuarios.json()
+
+            txt_livroID.value = (f'Livro: {dados_livro["titulo"]}')
+            txt_usuarioID.value = (f'Usuario: {dados_usuario["nome"]}')
+            txt_data_emprestimo.value = (f'Data do emprestimo: {emprestimo["data_emprestimo"]}')
+            txt_previsao_devolucao.value = (f'Devolução prevista: {emprestimo["data_devolucao_prevista"]}')
+
+            page.go("/detalhes_emprestimo")
 
     def post_cadastro_livro(novo_livro):
         url = 'http://10.135.232.20:5000/cadastrar_livro'
@@ -293,7 +305,7 @@ def main(page: ft.Page):
         input_usuario_id.value = emprestimo['usuario_id']
         input_livro_id.value = emprestimo['livro_id']
         input_data_emprestimo.value = emprestimo['data_emprestimo']
-        input_devolucao_prevista.value = emprestimo['data_devolucao']
+        input_devolucao_prevista.value = emprestimo['data_devolucao_prevista']
 
         global id_emprestimo_global
         id_emprestimo_global = emprestimo['id']
@@ -352,12 +364,11 @@ def main(page: ft.Page):
             page.update()
 
         else:
-
             emprestimo_atualizado = {
                 'livro_id': input_livro_id.value,
                 'usuario_id': input_usuario_id.value,
                 'data_emprestimo': input_data_emprestimo.value,
-                'data_devolucao': input_devolucao_prevista.value
+                'data_devolucao_prevista': input_devolucao_prevista.value
             }
 
             response = requests.put(url, json=emprestimo_atualizado)
@@ -394,7 +405,7 @@ def main(page: ft.Page):
         resultado_status = lista_status()
         print(f' Status: {resultado_status["livros_emprestados"]}')
         for status in resultado_status['livros_emprestados']:
-            lv.controls.append(
+            lv_emprestados.controls.append(
                 ft.ListTile(
                     leading=ft.Icon(ft.Icons.BOOK_OUTLINED),
                     title=ft.Text(f'Título: {status["titulo"]}'),
@@ -408,7 +419,7 @@ def main(page: ft.Page):
             )
 
         for status_disponiveis in resultado_status['livros_disponiveis']:
-            lv.controls.append(
+            lv_disponiveis.controls.append(
                 ft.ListTile(
                     leading=ft.Icon(ft.Icons.BOOK),
                     title=ft.Text(f'Título: {status_disponiveis["titulo"]}'),
@@ -438,7 +449,6 @@ def main(page: ft.Page):
                     )
                 )
             )
-
 
 
     def emprestimos(e):
@@ -890,7 +900,10 @@ def main(page: ft.Page):
                     "/status",
                     [
                         AppBar(title=Text("Status"), bgcolor="#2CC3FF"),
-                        lv
+                        text_disponiveis,
+                        lv_disponiveis,
+                        text_emprestados,
+                        lv_emprestados,
                     ],
                     bgcolor = "#213D85",
                     horizontal_alignment = CrossAxisAlignment.CENTER,
@@ -904,6 +917,9 @@ def main(page: ft.Page):
     input_isbn = ft.TextField(label="ISBN", hint_text="Digite o ISBN")
     input_resumo = ft.TextField(label="Resumo", hint_text="Digite um breve resumo")
     input_autor = ft.TextField(label="Autor", hint_text="Digite o autor")
+
+    text_disponiveis = ft.Text(value="Disponíveis", color=Colors.WHITE, size=20, weight=FontWeight.BOLD)
+    text_emprestados = ft.Text(value="Emprestados", color=Colors.WHITE,  size=20, weight=FontWeight.BOLD)
 
     input_nome = ft.TextField(label="Nome", hint_text="Digite seu nome")
     input_cpf = ft.TextField(label="CPF", hint_text="Digite o seu CPF")
@@ -937,6 +953,14 @@ def main(page: ft.Page):
 
     lv = ft.ListView(
         height=500
+    )
+
+    lv_disponiveis = ft.ListView(
+        height=250
+    )
+
+    lv_emprestados = ft.ListView(
+        height=250
     )
 
     msg_sucesso = ft.SnackBar(
