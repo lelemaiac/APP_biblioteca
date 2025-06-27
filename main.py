@@ -8,7 +8,6 @@ from flet.core.dropdown import Option
 from flet.core.types import CrossAxisAlignment, FontWeight
 from dateutil.relativedelta import relativedelta
 from datetime import datetime
-from urllib3 import response
 
 id_usuario_global = 0
 id_emprestimo_global = 0
@@ -71,8 +70,8 @@ def main(page: ft.Page):
 
             resposta = cadastro_usuario(novo_usuario)
 
-            if 'erro' in resposta:
-                msg_error.content = ft.Text(resposta['erro'])
+            if 'error' in resposta:
+                msg_error.content = ft.Text(resposta['error'])
                 page.overlay.append(msg_error)
                 msg_error.open = True
                 page.update()
@@ -89,16 +88,19 @@ def main(page: ft.Page):
 
     def salvar_emprestimo(e):
         if (input_livro_id.value == "" or input_usuario_id.value == ""
-                or input_data_emprestimo.value == "" or input_devolucao_prevista.value == ""):
+                or input_data_emprestimo.value == "" or input_devolucao_prevista.value == "" ):
             page.overlay.append(msg_error)
             msg_error.open = True
             page.update()
+
         else:
+            data_calculada = get_data_devolucao()
+
             novo_emprestimo = {
                 'livro_id': input_livro_id.value,
                 'usuario_id': input_usuario_id.value,
                 "data_emprestimo": input_data_emprestimo.value,
-                "data_devolucao_prevista": input_devolucao_prevista.value,
+                "data_devolucao_prevista": data_calculada.value,
             }
 
             resposta = cadastro_emprestimo(novo_emprestimo)
@@ -113,6 +115,7 @@ def main(page: ft.Page):
                 input_usuario_id.value = ""
                 input_data_emprestimo.value = ""
                 input_devolucao_prevista.value = ""
+
                 page.overlay.append(msg_sucesso)
                 msg_sucesso.open = True
         page.update()
@@ -134,8 +137,8 @@ def main(page: ft.Page):
         page.go("/detalhes_usuario")
 
     def detalhes_emprestimo(emprestimo):
-        url_livro = f'http://10.135.232.20:5000/get_livro/{emprestimo["livro_id"]}'
-        url_usuario = f'http://10.135.232.20:5000/get_usuario/{emprestimo["usuario_id"]}'
+        url_livro = f'http://10.135.232.21:5000/get_livro/{emprestimo["livro_id"]}'
+        url_usuario = f'http://10.135.232.21:5000/get_usuario/{emprestimo["usuario_id"]}'
 
         response_livros = requests.get(url_livro)
         response_usuarios = requests.get(url_usuario)
@@ -152,7 +155,7 @@ def main(page: ft.Page):
             page.go("/detalhes_emprestimo")
 
     def post_cadastro_livro(novo_livro):
-        url = 'http://10.135.232.20:5000/cadastrar_livro'
+        url = 'http://10.135.232.21:5000/cadastrar_livro'
 
         response = requests.post(url, json=novo_livro)
 
@@ -163,8 +166,22 @@ def main(page: ft.Page):
         else:
             return response.json()
 
+    def get_data_devolucao():
+        prazo = input_devolucao_prevista.value
+        data_devolucao = input_data_emprestimo.value
+        url = f"http://10.135.232.21:5000/calcular_devolucao/{data_devolucao}+{prazo}"
+
+        response = requests.get(url)
+        if response.status_code == 200:
+            dados_emprestimo = response.json()
+            print(dados_emprestimo)
+            return dados_emprestimo["devolucao"]
+        else:
+
+            return response.json()
+
     def cadastro_usuario(novo_usuario):
-        url = 'http://10.135.232.20:5000/cadastrar_usuario'
+        url = 'http://10.135.232.21:5000/cadastrar_usuario'
         response = requests.post(url, json=novo_usuario)
 
         if response.status_code == 201:
@@ -175,7 +192,7 @@ def main(page: ft.Page):
             return response.json()
 
     def cadastro_emprestimo(novo_emprestimo):
-        url = 'http://10.135.232.20:5000/cadastrar_emprestimo'
+        url = 'http://10.135.232.21:5000/cadastrar_emprestimo'
         response = requests.post(url, json=novo_emprestimo)
 
         if response.status_code == 201:
@@ -186,7 +203,7 @@ def main(page: ft.Page):
             return response.json()
 
     def lista_livros():
-        url = 'http://10.135.232.20:5000/livros'
+        url = 'http://10.135.232.21:5000/livros'
         response_livros = requests.get(url)
 
         if response_livros.status_code == 200:
@@ -198,7 +215,7 @@ def main(page: ft.Page):
             return response.json()
 
     def lista_emprestimos():
-        url = 'http://10.135.232.20:5000/emprestimos'
+        url = 'http://10.135.232.21:5000/emprestimos'
         response_emprestimos = requests.get(url)
 
         if response_emprestimos.status_code == 200:
@@ -208,7 +225,7 @@ def main(page: ft.Page):
             msg_error.open = True
 
     def lista_usuarios():
-        url = 'http://10.135.232.20:5000/usuarios'
+        url = 'http://10.135.232.21:5000/usuarios'
         response_usuarios = requests.get(url)
 
         if response_usuarios.status_code == 200:
@@ -218,7 +235,7 @@ def main(page: ft.Page):
             msg_error.open = True
 
     def lista_status():
-        url = 'http://10.135.232.20:5000/status_livro'
+        url = 'http://10.135.232.21:5000/status_livro'
         response_status = requests.get(url)
 
         if response_status.status_code == 200:
@@ -240,7 +257,7 @@ def main(page: ft.Page):
     def emprestimo_por_usuario():
         print("lllllllllllll")
         global id_emprestimo_usuario_global
-        url = f'http://10.135.232.20:5000/emprestimos_usuario/{id_emprestimo_usuario_global}'
+        url = f'http://10.135.232.21:5000/emprestimos_usuario/{id_emprestimo_usuario_global}'
         response_emprestimo_usuario = requests.get(url)
 
         if response_emprestimo_usuario.status_code == 200:
@@ -270,7 +287,7 @@ def main(page: ft.Page):
     def atualizar_livros():
         global id_livro_global
         print(id_livro_global)
-        url = f'http://10.135.232.20:5000/editar_livro/{id_livro_global}'
+        url = f'http://10.135.232.21:5000/editar_livro/{id_livro_global}'
 
         livro_atualizado = {
             'titulo': input_titulo.value,
@@ -306,6 +323,7 @@ def main(page: ft.Page):
         input_livro_id.value = emprestimo['livro_id']
         input_data_emprestimo.value = emprestimo['data_emprestimo']
         input_devolucao_prevista.value = emprestimo['data_devolucao_prevista']
+        input_status.value = emprestimo['status']
 
         global id_emprestimo_global
         id_emprestimo_global = emprestimo['id']
@@ -332,7 +350,7 @@ def main(page: ft.Page):
 
     def atualizar_usuario():
         global id_usuario_global
-        url = f'http://10.135.232.20:5000/editar_usuario/{id_usuario_global}'
+        url = f'http://10.135.232.21:5000/editar_usuario/{id_usuario_global}'
 
         if input_nome == "" or input_cpf == "" or input_endereco == "" or input_papel == "":
             page.overlay.append(msg_error)
@@ -356,7 +374,7 @@ def main(page: ft.Page):
 
     def atualizar_emprestimo():
         global id_emprestimo_global
-        url = f'http://10.135.232.20:5000/editar_emprestimo/{id_emprestimo_global}'
+        url = f'http://10.135.232.21:5000/editar_emprestimo/{id_emprestimo_global}'
 
         if input_data_emprestimo == "" or input_devolucao_prevista == "" or input_usuario_id == "" or input_livro_id == "":
             page.overlay.append(msg_error)
@@ -367,6 +385,7 @@ def main(page: ft.Page):
             emprestimo_atualizado = {
                 'livro_id': input_livro_id.value,
                 'usuario_id': input_usuario_id.value,
+                'status': input_status.value,
                 'data_emprestimo': input_data_emprestimo.value,
                 'data_devolucao_prevista': input_devolucao_prevista.value
             }
@@ -652,6 +671,7 @@ def main(page: ft.Page):
                         input_usuario_id,
                         input_data_emprestimo,
                         input_devolucao_prevista,
+                        input_status,
                         ElevatedButton(text="Enviar",
                                        color=ft.Colors.WHITE,
                                        on_click=lambda _: atualizar_emprestimo(),
@@ -679,6 +699,7 @@ def main(page: ft.Page):
                         input_usuario_id,
                         input_data_emprestimo,
                         input_devolucao_prevista,
+
                         ElevatedButton(text="Enviar",
                                        color=ft.Colors.WHITE,
                                        on_click=lambda _: salvar_emprestimo(e),
@@ -939,6 +960,11 @@ def main(page: ft.Page):
 
     resultado_lista_usuario = lista_usuarios()
     print(resultado_lista_usuario)
+
+    input_status = ft.Dropdown(label="Status",
+                               options=[Option(key="empre", text="Emprestado"),
+                                        Option(key="dispo", text="Disponível")],
+                               width=page.window.width)
 
     options = [Option(key=usuario["id"], text=usuario["nome"])for usuario in resultado_lista_usuario]
 
